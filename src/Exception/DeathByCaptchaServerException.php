@@ -6,7 +6,7 @@
  * @Last Modified time: 2015-11-09 16:12:35
  */
 
-namespace hmphu\deathbycaptcha;
+namespace hmphu\deathbycaptcha\Exception;
 
 /**
  * Generic exception to throw on API server errors.

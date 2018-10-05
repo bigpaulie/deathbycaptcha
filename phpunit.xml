@@ -1,0 +1,14 @@
+<phpunit bootstrap="./vendor/autoload.php"
+         convertErrorsToExceptions="true"
+         convertWarningsToExceptions="true"
+         convertNoticesToExceptions="true"
+         colors="true">
+
+    <testsuites>
+
+        <testsuite name="DBC Test Suite">
+            <directory>./test</directory>
+        </testsuite>
+    </testsuites>
+
+</phpunit>

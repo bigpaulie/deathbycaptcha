@@ -6,7 +6,7 @@
  * @Last Modified time: 2015-11-09 16:12:50
  */
 
-namespace hmphu\deathbycaptcha;
+namespace hmphu\deathbycaptcha\Exception;
 
 /**
  * Exception to throw when service is overloaded.

@@ -8,6 +8,9 @@
 
 namespace hmphu\deathbycaptcha;
 
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaInvalidCaptchaException;
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaRuntimeException;
+
 /**
  * Base Death by Captcha API client
  *
@@ -19,10 +22,12 @@ namespace hmphu\deathbycaptcha;
  */
 abstract class DeathByCaptchaClient
 {
-    const API_VERSION = 'DBC/PHP v4.1.1';
+    const API_VERSION = 'DBC/PHP v4.5';
 
     const DEFAULT_TIMEOUT = 60;
-    const POLLS_INTERVAL = 5;
+    const DEFAULT_TOKEN_TIMEOUT = 120;
+    const POLLS_INTERVAL = array(1, 1, 2, 3, 2, 2, 3, 2, 2);
+    const DFLT_POLL_INTERVAL = 3;
 
 
     /**
@@ -70,6 +75,7 @@ abstract class DeathByCaptchaClient
      * Checks if CAPTCHA is valid (not empty)
      *
      * @param string $img Raw CAPTCHA image
+     * @return bool
      * @throws DeathByCaptchaInvalidCaptchaException On invalid CAPTCHA images
      */
     protected function _is_valid_captcha($img)
@@ -159,27 +165,50 @@ abstract class DeathByCaptchaClient
      * Uploads a CAPTCHA
      *
      * @param string|array|resource $captcha CAPTCHA image file name, vector of bytes, or file handle
+     * @package array $extra
      * @return array|null Uploaded CAPTCHA details on success
      * @throws DeathByCaptchaInvalidCaptchaException On invalid CAPTCHA file
      */
-    abstract public function upload($captcha);
+    abstract public function upload($captcha, $extra = []);
 
     /**
      * Tries to solve CAPTCHA by uploading it and polling for its status/text
-     * with arbitrary timeout. See {@link DeathByCaptchaClient::upload()} for
+     * with arbitrary timeout. See {@link DeathByCaptcha_Client::upload()} for
      * $captcha param details.
      *
-     * @uses DeathByCaptchaClient::upload()
-     * @uses DeathByCaptchaClient::get_captcha()
+     * @uses DeathByCaptcha_Client::upload()
+     * @uses DeathByCaptcha_Client::get_captcha()
+     * @param null $captcha
+     * @param array $extra
      * @param int $timeout Optional solving timeout (in seconds)
      * @return array|null CAPTCHA details hash on success
+     * @throws DeathByCaptchaInvalidCaptchaException
      */
-    public function decode($captcha, $timeout=self::DEFAULT_TIMEOUT)
+    public function decode($captcha=null, $extra=[], $timeout=null)
     {
+        if (!$extra || !is_array($extra)){
+            $extra = [];
+        }
+
+        if (is_null($timeout)){
+            if (is_null($captcha)){
+                $timeout = self::DEFAULT_TOKEN_TIMEOUT;
+            }
+            else {
+                $timeout = self::DEFAULT_TIMEOUT;
+            }
+        }
+
         $deadline = time() + (0 < $timeout ? $timeout : self::DEFAULT_TIMEOUT);
-        if ($c = $this->upload($captcha)) {
+        if ($c = $this->upload(
+            $captcha,
+            $extra)
+        ) {
+            $intvl_idx = 0; // POLLS_INTERVAL index
+
             while ($deadline > time() && $c && !$c['text']) {
-                sleep(self::POLLS_INTERVAL);
+                list($intvl, $intvl_idx) = $this->_get_poll_interval($intvl_idx);
+                sleep($intvl);
                 $c = $this->get_captcha($c['captcha']);
             }
             if ($c && $c['text'] && $c['is_correct']) {
@@ -221,10 +250,27 @@ abstract class DeathByCaptchaClient
     public function __get($key)
     {
         switch ($key) {
-        case 'user':
-            return $this->get_user();
-        case 'balance':
-            return $this->get_balance();
+            case 'user':
+                return $this->get_user();
+            case 'balance':
+                return $this->get_balance();
         }
+    }
+
+    /**
+     * @param int $idx index of POLLS_INTERVAL to be accessed
+     * @return array with interval and index
+     */
+    protected function _get_poll_interval($idx)
+    {
+        if (count(self::POLLS_INTERVAL) > $idx) {
+            $intvl = self::POLLS_INTERVAL[$idx];
+        }
+        else {
+            $intvl = self::DFLT_POLL_INTERVAL;
+        }
+        $idx++;
+
+        return array($intvl, $idx);
     }
 }

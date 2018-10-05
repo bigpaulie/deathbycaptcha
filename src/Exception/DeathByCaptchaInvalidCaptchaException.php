@@ -6,7 +6,7 @@
  * @Last Modified time: 2015-11-09 16:12:28
  */
 
-namespace hmphu\deathbycaptcha;
+namespace hmphu\deathbycaptcha\Exception;
 
 /**
  * Exception to throw on invalid CAPTCHA image payload: on empty images, on images too big, on non-image payloads.

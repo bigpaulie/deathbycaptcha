@@ -6,7 +6,7 @@
  * @Last Modified time: 2015-11-09 16:12:20
  */
 
-namespace hmphu\deathbycaptcha;
+namespace hmphu\deathbycaptcha\Exception;
 
 /**
  * Exception to throw on rejected login attemts due to invalid DBC credentials, low balance, or when account being banned.

@@ -6,7 +6,7 @@
  * @Last Modified time: 2015-11-09 18:07:55
  */
 
-namespace hmphu\deathbycaptcha;
+namespace hmphu\deathbycaptcha\Exception;
 
 /**
  * Base class for DBC related exceptions.

@@ -6,7 +6,7 @@
  * @Last Modified time: 2015-11-09 16:11:44
  */
 
-namespace hmphu\deathbycaptcha;
+namespace hmphu\deathbycaptcha\Exception;
 
 /**
  * Exception to throw on network or disk IO failures.

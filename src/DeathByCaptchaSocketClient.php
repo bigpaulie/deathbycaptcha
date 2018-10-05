@@ -8,6 +8,14 @@
 
 namespace hmphu\deathbycaptcha;
 
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaAccessDeniedException;
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaException;
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaInvalidCaptchaException;
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaIOException;
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaRuntimeException;
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaServerException;
+use hmphu\deathbycaptcha\Exception\DeathByCaptchaServiceOverloadException;
+
 /**
  * Death by Captcha socket API Client
  *
@@ -111,13 +119,14 @@ class DeathByCaptchaSocketClient extends DeathByCaptchaClient
     /**
      * Makes an API call
      *
-     * @param string $cmd     API command to call
-     * @param array  $payload API request payload
+     * @param string $cmd API command to call
+     * @param array $payload API request payload
      * @return array|null API response hash map on success
      * @throws DeathByCaptchaIOException On network errors
      * @throws DeathByCaptchaAccessDeniedException On failed login attempt
      * @throws DeathByCaptchaInvalidCaptchaException On invalid CAPTCHAs rejected by the service
      * @throws DeathByCaptchaServerException On API server errors
+     * @throws DeathByCaptchaRuntimeException
      */
     protected function _call($cmd, $payload=null)
     {
@@ -159,30 +168,30 @@ class DeathByCaptchaSocketClient extends DeathByCaptchaClient
 
             if (!empty($response['error'])) {
                 switch ($response['error']) {
-                case 'not-logged-in':
-                    throw new DeathByCaptchaAccessDeniedException(
-                        'Access denied, check your credentials'
-                    );
-                case 'banned':
-                    throw new DeathByCaptchaAccessDeniedException(
-                        'Access denied, account suspended'
-                    );
-                case 'insufficient-funds':
-                    throw new DeathByCaptchaAccessDeniedException(
-                        'Access denied, balance is too low'
-                    );
-                case 'invalid-captcha':
-                    throw new DeathByCaptchaInvalidCaptchaException(
-                        "CAPTCHA was rejected by the service, check if it's a valid image"
-                    );
-                case 'service-overload':
-                    throw new DeathByCaptchaServiceOverloadException(
-                        'CAPTCHA was rejected due to service overload, try again later'
-                    );
-                default:
-                    throw new DeathByCaptchaServerException(
-                        'API server error occured: ' . $error
-                    );
+                    case 'not-logged-in':
+                        throw new DeathByCaptchaAccessDeniedException(
+                            'Access denied, check your credentials'
+                        );
+                    case 'banned':
+                        throw new DeathByCaptchaAccessDeniedException(
+                            'Access denied, account suspended'
+                        );
+                    case 'insufficient-funds':
+                        throw new DeathByCaptchaAccessDeniedException(
+                            'Access denied, balance is too low'
+                        );
+                    case 'invalid-captcha':
+                        throw new DeathByCaptchaInvalidCaptchaException(
+                            "CAPTCHA was rejected by the service, check if it's a valid image"
+                        );
+                    case 'service-overload':
+                        throw new DeathByCaptchaServiceOverloadException(
+                            'CAPTCHA was rejected due to service overload, try again later'
+                        );
+                    default:
+                        throw new DeathByCaptchaServerException(
+                            'API server error occured: ' . $response['error']
+                        );
                 }
             } else {
                 return $response;
@@ -195,7 +204,8 @@ class DeathByCaptchaSocketClient extends DeathByCaptchaClient
 
 
     /**
-     * @see DeathByCaptchaClient::__construct()
+     * @see DeathByCaptcha_Client::__construct()
+     * @throws DeathByCaptchaRuntimeException
      */
     public function __construct($username, $password)
     {
@@ -223,7 +233,7 @@ class DeathByCaptchaSocketClient extends DeathByCaptchaClient
     }
 
     /**
-     * @see DeathByCaptchaClient::close()
+     * @see DeathByCaptcha_Client::close()
      */
     public function close()
     {
@@ -240,28 +250,49 @@ class DeathByCaptchaSocketClient extends DeathByCaptchaClient
     }
 
     /**
-     * @see DeathByCaptchaClient::get_user()
+     * @see DeathByCaptcha_Client::get_user()
      */
     public function get_user()
     {
         $user = $this->_call('user');
         return (0 < ($id = (int)@$user['user']))
             ? array('user' => $id,
-                    'balance' => (float)@$user['balance'],
-                    'is_banned' => (bool)@$user['is_banned'])
+                'balance' => (float)@$user['balance'],
+                'is_banned' => (bool)@$user['is_banned'])
             : null;
     }
 
     /**
-     * @see DeathByCaptchaClient::get_user()
+     * @see DeathByCaptcha_Client::get_user()
+     * @param null $captcha
+     * @param array $extra
+     * @return array|null
+     * @throws DeathByCaptchaAccessDeniedException
+     * @throws DeathByCaptchaIOException
+     * @throws DeathByCaptchaInvalidCaptchaException
+     * @throws DeathByCaptchaRuntimeException
+     * @throws DeathByCaptchaServerException
      */
-    public function upload($captcha)
+    public function upload($captcha=null, $extra=[])
     {
-        $img = $this->_load_captcha($captcha);
-        if ($this->_is_valid_captcha($img)) {
-            $captcha = $this->_call('upload', array(
-                'captcha' => base64_encode($img),
-            ));
+        if(null!==$captcha){
+            $img = $this->_load_captcha($captcha);
+            if ($this->_is_valid_captcha($img)) {
+                if ($extra['banner']){
+                    $extra['banner'] = $this->_load_captcha($extra['banner']);
+                    if ($this->_is_valid_captcha($extra['banner'])){
+                        $extra['banner'] = base64_encode($extra['banner']);
+                    }
+                }
+                $captcha = $this->_call('upload', array_merge(
+                    ['captcha' => base64_encode($img)],
+                    $extra
+                ));
+            }
+        }elseif(sizeof($extra)>0){
+            $captcha = $this->_call('upload', $extra);
+        }
+        if (null!== $captcha){
             if (0 < ($cid = (int)@$captcha['captcha'])) {
                 return array(
                     'captcha' => $cid,
@@ -274,20 +305,20 @@ class DeathByCaptchaSocketClient extends DeathByCaptchaClient
     }
 
     /**
-     * @see DeathByCaptchaClient::get_captcha()
+     * @see DeathByCaptcha_Client::get_captcha()
      */
     public function get_captcha($cid)
     {
         $captcha = $this->_call('captcha', array('captcha' => (int)$cid));
         return (0 < ($cid = (int)@$captcha['captcha']))
             ? array('captcha' => $cid,
-                    'text' => (!empty($captcha['text']) ? $captcha['text'] : null),
-                    'is_correct' => (bool)$captcha['is_correct'])
+                'text' => (!empty($captcha['text']) ? $captcha['text'] : null),
+                'is_correct' => (bool)$captcha['is_correct'])
             : null;
     }
 
     /**
-     * @see DeathByCaptchaClient::report()
+     * @see DeathByCaptcha_Client::report()
      */
     public function report($cid)
     {
